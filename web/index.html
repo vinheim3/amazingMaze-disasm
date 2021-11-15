@@ -1,0 +1,212 @@
+<html lang="en">
+    <head>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.2/css/bulma.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.js"></script>
+    </head>
+
+    <body>
+        <div id="root">
+            <div class="section">
+                <div class="box">
+                    <div class="container">
+                        <button class="button" type="button" 
+                            v-for="btn in Object.keys(animateBtns)" v-on:click="animate(btn)">
+                            {{ btn }}
+                        </button>
+                    </div>
+                    <div class="container is-flex" style="flex-wrap:wrap">
+                        <div v-for="screen of screens" style="margin:3px">
+                            <div>{{ screen.name }}</div>
+                            <canvas :id="screen.name+' map'" width="256" height="224"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let printBytes = function(bytes) {
+                console.log(bytes.map(i => i.toString(16)).join(' '));
+            }
+
+            let wordIn = function(rom, addr) {
+                return (rom[addr+1]<<8)+rom[addr];
+            }
+
+            class Screen {
+                constructor(screenSpec, rom) {
+                    this.ppu = new Array(0x2000).fill(0);
+                    this.rom = null;
+                    this.screenSpec = screenSpec;
+                    this.rom = rom;
+                    this.animateIdx = screenSpec.animateStartIdx;
+                    this.canAnimate = false;
+                }
+
+                drawScreen() {
+                    let screen = this.screenSpec;
+
+                    // Gen animated sources
+                    if (this.screenSpec.animated && this.canAnimate) {
+                        let animation = this.screenSpec.animateFunc(this.animateIdx++, this.rom);
+                        screen.sources = animation.sources;
+
+                        if (this.animateIdx > this.screenSpec.animateEndIdx) 
+                            this.animateIdx = this.screenSpec.animateStartIdx;
+                        screen.name = animation.name;
+                    }
+
+                    // set vram sources
+                    for (let i = 0; i < screen.sources.length; i++) {
+                        let [algo, addr, dest, ...args] = screen.sources[i];
+                        this[algo](addr, dest-0x2000, ...args);
+                    }
+                    
+                    this.drawBytes(this.ppu.slice(0x400), `${screen.name} map`);
+
+                    if (this.screenSpec.animated && this.canAnimate) {
+                        setTimeout(this.drawScreen.bind(this), 1000./60. * (this.screenSpec.animateDelay||3));
+                    }
+                }
+
+                simpleCopy(addr, dest, numBytes, srcLoc, destLoc) {
+                    srcLoc = srcLoc || 'rom';
+                    destLoc = destLoc || 'ppu';
+                    for (let i = 0; i < numBytes; i++)
+                        this[destLoc][dest+i] = this[srcLoc][addr+i];
+                }
+
+                charCopy(letterIdx, dest) {
+                    let srcAddr = 0x170+letterIdx*10;
+                    for (let i = 0; i < 10; i++) {
+                        this.ppu[dest+0x400+i*0x20] = this.rom[srcAddr+i];
+                    }
+                }
+
+                allCharCopy() {
+                    for (let i = 0; i < 32; i++) {
+                        this.charCopy(i, i);
+                        if (i < 5)
+                            this.charCopy(i+32, i+32*10);
+                    }
+                }
+
+                setBytes(addr, dest, ...bytes) {
+                    for (let i = 0; i < bytes.length; i++)
+                        this.ppu[dest+i] = bytes[i];
+                }
+
+                fillScreen(b) {
+                    for (let i = 0x9800; i < 0xa000; i++)
+                        this.ppu[i] = b;
+                }
+
+                drawBytes(bytes, canvas_id) {
+                    let canvas = document.getElementById(canvas_id);
+                    if (!canvas) return;
+                    let ctx = canvas.getContext("2d");
+
+                    let width = canvas.width, height = canvas.height;
+                    let myImageData = ctx.createImageData(width, height);
+                    let data = myImageData.data;
+
+                    let bgPalettes = [0x00, 0xff];
+
+                    for (let row = 0; row < 224; row++) {
+                        for (let col = 0; col < 32; col++) {
+                            let offsetFromRow = 31-row;
+                            let offsetFromCol = col*28;
+                            let dataByte = bytes[row*32+col];
+                            for (let i = 0; i < 8; i++) {
+                                // num pixels * 4
+                                let canvasDataOffset = 4*(row*256+col*8+i);
+                                let colorIdx = (dataByte>>i)&1;
+                                data[canvasDataOffset] = bgPalettes[colorIdx];
+                                data[canvasDataOffset+1] = bgPalettes[colorIdx];
+                                data[canvasDataOffset+2] = bgPalettes[colorIdx];
+                                data[canvasDataOffset+3] = 255;
+                            }
+                        }
+                    }
+                    ctx.putImageData(myImageData, 0, 0);
+                }
+            }
+
+            let app = new Vue({
+                el: '#root',
+                data: {
+                    uint8view: null,
+                    screenMap: {},
+                    animateBtns: {
+                        'Cyber Front': ['Cyber Front'],
+                    },
+                    screens: [
+                        {
+                            name: "test",
+                            sources: [
+                                ['allCharCopy', 0, 0],
+                                //['charCopy', 0, 0x241f],
+                            ],
+                        },
+                    ]
+                },
+                methods: {
+                    animate: function(btnName) {
+                        for (let btn in this.animateBtns) {
+                            let affected = this.animateBtns[btn];
+                            if (btn === btnName) {
+                                for (let i = 0; i < affected.length; i++) {
+                                    let screen = this.screenMap[affected[i]];
+                                    screen.screenSpec.animateIdx = screen.screenSpec.animateStartIdx;
+                                    screen.canAnimate = true;
+                                    screen.drawScreen();
+                                }
+                            } else {
+                                for (let i = 0; i < affected.length; i++) {
+                                    this.screenMap[affected[i]].canAnimate = false;
+                                }
+                            }
+                        }
+                    },
+
+                    loadData: function() {
+                        fetch('/prgRom.bin')
+                            .then(response => checkStatus(response) && response.arrayBuffer())
+                            .then(buffer => {
+                                this.uint8view = new Uint8Array(buffer);
+
+                                setTimeout(this.loadScreens, 5);
+                            });
+                    },
+
+                    wordIn: function(addr) {
+                        return wordIn(this.uint8view, addr);
+                    },
+
+                    loadScreens: function() {
+                        if (this.uint8view === null) return;
+
+                        let newScreenMap = {};
+                        for (let screenData of this.screens) {
+                            let screenName = screenData.name;
+                            let screen = new Screen(screenData, this.uint8view);
+                            newScreenMap[screenName] = screen;
+                            screen.drawScreen();
+                        }
+                        this.screenMap = newScreenMap;
+                    },
+                },
+                computed: {},
+            });
+
+            app.loadData();
+
+            function checkStatus(response) {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status} - ${response.statusText}`);
+                }
+                return response;
+            }
+        </script>
+    </body>
+</html>
