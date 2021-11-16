@@ -18,7 +18,7 @@
     .db $04
 ; player's tile data src, tile data src to set, pointer to tile Y to place player
     .dw \1, \2, \3
-	.db \4, \5 ; player's X, bits to set on eg wPlayer1DirInputs
+	.db \4, \5 ; player's X, bits to set on eg wPlayer1.DirInputs
 .endm
 
 .macro S_CHECK2PLAYERGAMETIME

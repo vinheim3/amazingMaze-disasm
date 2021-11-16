@@ -833,7 +833,7 @@ _VBlankInterruptHandler:
 	call UpdatePlayersDisplayOnScreen                               ; $02e7
 	call DecTimersCheckThoseJustDone                                ; $02ea
 
-	lxi h, wPlayer1DirInputs                                        ; $02ed
+	lxi h, wPlayer1.DirInputs                                       ; $02ed
 	call UpdatePlayerFromInputsHeld                                 ; $02f0
 
 ; Process timers, directions players have held, and if any players have won
@@ -896,7 +896,7 @@ _MidFrameInterruptHandler:
 	call MoveAI                                                     ; $0335
 
 @updatePlayer2FromInputs:
-	lxi h, wPlayer2DirInputs                                        ; $0338
+	lxi h, wPlayer2.DirInputs                                       ; $0338
 	call UpdatePlayerFromInputsHeld                                 ; $033b
 	jmp InterruptHandlerEnd                                         ; $033e
 
@@ -1046,7 +1046,7 @@ GenNewGameGrid:
 	call SetGameGridLeftExitPoint                                   ; $03de
 
 @setMoreWalls:
-; Check neighbors, jumping if none done (can't move)
+; Check neighbors, jumping if all already previously explored (can't move)
 	call EisNumNeighborsWithBit0Clear                               ; $03e1
 	out WATCHDOG_RESET                                              ; $03e4
 	mov a, e                                                        ; $03e6
@@ -1063,11 +1063,11 @@ GenNewGameGrid:
 	ana a                                                           ; $03f4
 	jz @setNewGameGrid                                              ; $03f5
 
-; If game grid cell bit 0's set (pending operation on it), set more walls from it
-	call CheckIfAnyGridCellBit0sSet                                 ; $03f8
+; If any game grid cell bit 0's set (previously explored), try to set more walls from it
+	call RetZIfReachedEndOfGridWithNoNewWallsSet                    ; $03f8
 	jc @setMoreWalls                                                ; $03fb
 
-; Else if all bit 0's clear, set that game grid is now loaded
+; Else set that game grid is now loaded
 	inr a                                                           ; $03fe
 	sta wGameGridLoaded                                             ; $03ff
 	ret                                                             ; $0402
@@ -1178,8 +1178,8 @@ CheckIfAnyPlayerWon:
 
 ; B = player that just won
 	mvi b, $01                                                      ; $0458
-	lxi h, wPlayer2PixelX                                           ; $045a
-	lxi d, wPlayer1PixelX                                           ; $045d
+	lxi h, wPlayer2.PixelX                                          ; $045a
+	lxi d, wPlayer1.PixelX                                          ; $045d
 
 ; Jump if player 1's X == $10
 	ldax d                                                          ; $0460
@@ -1197,11 +1197,11 @@ CheckIfAnyPlayerWon:
 	mov m, a                                                        ; $046b
 	dcx h                                                           ; $046c
 
-; Clear wPlayer2DirInputs
+; Clear wPlayer2.DirInputs
 	mov m, a                                                        ; $046d
 	xchg                                                            ; $046e
 
-; Repeat for p1 pixel X and wPlayer1DirInputs
+; Repeat for p1 pixel X and wPlayer1.DirInputs
 	mov m, a                                                        ; $046f
 	dcx h                                                           ; $0470
 	mov m, a                                                        ; $0471
@@ -1249,7 +1249,7 @@ ProcessDirInputs:
 	rnz                                                             ; $04a1
 
 ; Set inputs for player 1
-	lxi d, wPlayer1DirInputs                                        ; $04a2
+	lxi d, wPlayer1.DirInputs                                       ; $04a2
 	call UpdateAPlayersDirInputs                                    ; $04a5
 
 ; Return if num players == 1
@@ -1263,7 +1263,7 @@ ProcessDirInputs:
 	rrc                                                             ; $04af
 	rrc                                                             ; $04b0
 	rrc                                                             ; $04b1
-	lxi d, wPlayer2DirInputs                                        ; $04b2
+	lxi d, wPlayer2.DirInputs                                       ; $04b2
 
 ; A - btns held in low nybble
 ; DE - addr of player's btns held
@@ -1391,8 +1391,8 @@ ProcessGenericTimer:
 	jnz -                                                           ; $0541
 
 ; Clear player inputs
-	sta wPlayer2DirInputs                                           ; $0544
-	sta wPlayer1DirInputs                                           ; $0547
+	sta wPlayer2.DirInputs                                          ; $0544
+	sta wPlayer1.DirInputs                                          ; $0547
 	ret                                                             ; $054a
 
 @afterGameOverCheck:
@@ -1602,10 +1602,10 @@ ProcessStartInputs:
 ; Called mid-frame and in vblank
 UpdatePlayersDisplayOnScreen:
 ; Undraw both players
-	lxi h, wPlayer2DirInputs                                        ; $061e
+	lxi h, wPlayer2.DirInputs                                       ; $061e
 	push h                                                          ; $0621
 	call UndrawPlayer                                               ; $0622
-	lxi h, wPlayer1DirInputs                                        ; $0625
+	lxi h, wPlayer1.DirInputs                                       ; $0625
 	push h                                                          ; $0628
 	call UndrawPlayer                                               ; $0629
 
@@ -1679,19 +1679,19 @@ DrawPlayer:
 	sta wPlayerPixelShift                                           ; $0665
 	call DEequByteOffsetIntoScreen                                  ; $0668
 
-; BC = eg wPlayer1TileDataSrc
+; BC = eg wPlayer1.TileDataSrc
 	mov c, m                                                        ; $066b
 	inx h                                                           ; $066c
 	mov b, m                                                        ; $066d
 	inx h                                                           ; $066e
 
-; Store vram address in eg wPlayer1StartingVramLoc
+; Store vram address in eg wPlayer1.StartingVramLoc
 	mov m, e                                                        ; $066f
 	inx h                                                           ; $0670
 	mov m, d                                                        ; $0671
 	inx h                                                           ; $0672
 
-; DE = eg wPlayer1TileDataWithoutPlayer, HL = vram address of player
+; DE = eg wPlayer1.TileDataWithoutPlayer, HL = vram address of player
 	xchg                                                            ; $0673
 
 ; Draw 5 lines for the player
@@ -1700,7 +1700,7 @@ DrawPlayer:
 @nextLine:
 	push psw                                                        ; $0676
 
-; Store curr tile data in eg wPlayer1TileDataWithoutPlayer
+; Store curr tile data in eg wPlayer1.TileDataWithoutPlayer
 	mov a, m                                                        ; $0677
 	stax d                                                          ; $0678
 	inx d                                                           ; $0679
@@ -1714,7 +1714,7 @@ DrawPlayer:
 	ora m                                                           ; $067f
 	mov m, a                                                        ; $0680
 
-; HL points to next col, store curr tile data in eg wPlayer1TileDataWithoutPlayer+1
+; HL points to next col, store curr tile data in eg wPlayer1.TileDataWithoutPlayer+1
 	inx h                                                           ; $0681
 	mov a, m                                                        ; $0682
 	stax d                                                          ; $0683
@@ -1781,7 +1781,7 @@ UndrawPlayer:
 	rz                                                              ; $06b9
 
 ; HL points to player's vram loc, DE = that loc
-	lxi b, wPlayer1StartingVramLoc-wPlayer1DirInputs                ; $06ba
+	lxi b, wPlayer1.StartingVramLoc-wPlayer1.DirInputs              ; $06ba
 	dad b                                                           ; $06bd
 
 	mov e, m                                                        ; $06be
@@ -1789,7 +1789,7 @@ UndrawPlayer:
 	mov d, m                                                        ; $06c0
 	inx h                                                           ; $06c1
 
-; DE = eg wPlayer1TileDataWithoutPlayer, HL = player's vram loc
+; DE = eg wPlayer1.TileDataWithoutPlayer, HL = player's vram loc
 	xchg                                                            ; $06c2
 
 ; Draw 5 lines for the player
@@ -2159,7 +2159,7 @@ SetPendingGameGridByte:
 ; C - game grid row from bottom
 ; Returns with carry set if any bit 0s set
 ; If above set, returns with B & C set to pending position
-CheckIfAnyGridCellBit0sSet:
+RetZIfReachedEndOfGridWithNoNewWallsSet:
 @nextRow:
 ; Inc row, jumping if we're past the last
 	inr c                                                           ; $080d
@@ -2513,7 +2513,7 @@ UpdatePlayerFromInputsHeld:
 	ana a                                                           ; $0963
 	rp                                                              ; $0964
 
-; E = wPlayer1PixelX, D = wPlayer1PixelY
+; E = wPlayer1.PixelX, D = wPlayer1.PixelY
 	push h                                                          ; $0965
 	inx h                                                           ; $0966
 	mov e, m                                                        ; $0967
@@ -2558,7 +2558,7 @@ UpdatePlayerFromInputsHeld:
 	ora b                                                           ; $0992
 	mov m, a                                                        ; $0993
 
-; Save eg to wPlayer1PixelX and wPlayer1PixelY
+; Save eg to wPlayer1.PixelX and wPlayer1.PixelY
 	inx h                                                           ; $0994
 	mov m, e                                                        ; $0995
 	inx h                                                           ; $0996
@@ -2757,20 +2757,20 @@ ConvertPlayerPixelPosIntoGameGridCoords:
 
 MoveAI:
 ; Return if not aligned so it can move horizontally
-	lxi h, wPlayer2PixelY                                           ; $0a32
+	lxi h, wPlayer2.PixelY                                          ; $0a32
 	mov a, m                                                        ; $0a35
 	ani $07                                                         ; $0a36
 	cpi $03                                                         ; $0a38
 	rnz                                                             ; $0a3a
 
-; Check wPlayer2PixelX, returning if not aligned to move vertically
+; Check wPlayer2.PixelX, returning if not aligned to move vertically
 	dcx h                                                           ; $0a3b
 	mov a, m                                                        ; $0a3c
 	ani $07                                                         ; $0a3d
 	cpi $07                                                         ; $0a3f
 	rnz                                                             ; $0a41
 
-; A = wPlayer2DirInputs
+; A = wPlayer2.DirInputs
 	dcx h                                                           ; $0a42
 	mov a, m                                                        ; $0a43
 
@@ -2873,7 +2873,7 @@ MoveAI:
 	mov m, b                                                        ; $0ab6
 	inx h                                                           ; $0ab7
 
-; Update wPlayer2DirInputs
+; Update wPlayer2.DirInputs
 	mov a, m                                                        ; $0ab8
 	ani $f0                                                         ; $0ab9
 	ora d                                                           ; $0abb
@@ -2884,7 +2884,7 @@ MoveAI:
 ; B - game grid col from left
 ; C - game grid row from bottom
 ; Returns carry if we can move in.
-; Returns with wPlayer2DirInputs bits set in D
+; Returns with wPlayer2.DirInputs bits set in D
 CheckIfAICanMoveSouth:
 ; Move to grid cell below, returning if at bottommost
 	xra a                                                           ; $0abe
@@ -2910,7 +2910,7 @@ CheckIfAICanMoveSouth:
 ; B - game grid col from left
 ; C - game grid row from bottom
 ; Returns carry if we can move in.
-; Returns with wPlayer2DirInputs bits set in D
+; Returns with wPlayer2.DirInputs bits set in D
 CheckIfAICanMoveWest:
 	dcr b                                                           ; $0ace
 	rm                                                              ; $0acf
@@ -2934,7 +2934,7 @@ CheckIfAICanMoveWest:
 ; B - game grid col from left
 ; C - game grid row from bottom
 ; Returns carry if we can move in.
-; Returns with wPlayer2DirInputs bits set in D
+; Returns with wPlayer2.DirInputs bits set in D
 CheckIfAICanMoveNorth:
 ; Return if there is a north wall from here, C = cell above
 	call HLpointsToGameGridColBRowC                                 ; $0add
@@ -2962,7 +2962,7 @@ CheckIfAICanMoveNorth:
 ; B - game grid col from left
 ; C - game grid row from bottom
 ; Returns carry if we can move in.
-; Returns with wPlayer2DirInputs bits set in D
+; Returns with wPlayer2.DirInputs bits set in D
 CheckIfAICanMoveEast:
 ; Return if there is an east wall from here, B = right cell
 	call HLpointsToGameGridColBRowC                                 ; $0af0
@@ -3047,7 +3047,7 @@ ScriptCommand04_SetUpPlayer:
 	rlc                                                             ; $0b31
 	adi $03                                                         ; $0b32
 
-; Store it-1 in eg wPlayer1PixelY
+; Store it-1 in eg wPlayer1.PixelY
 	stax d                                                          ; $0b34
 	dcx d                                                           ; $0b35
 
@@ -3057,7 +3057,7 @@ ScriptCommand04_SetUpPlayer:
 	jnc +                                                           ; $0b3a
 	mvi c, $10                                                      ; $0b3d
 
-; Store next byte from script into eg wPlayer1PixelX
+; Store next byte from script into eg wPlayer1.PixelX
 +	mov a, m                                                        ; $0b3f
 	inx h                                                           ; $0b40
 	stax d                                                          ; $0b41
@@ -3068,7 +3068,7 @@ ScriptCommand04_SetUpPlayer:
 	inx h                                                           ; $0b44
 	shld wScriptPointer                                             ; $0b45
 
-; Update wPlayer1DirInputs from last script byte, and bit 4 from checking pixel Y
+; Update wPlayer1.DirInputs from last script byte, and bit 4 from checking pixel Y
 	ora c                                                           ; $0b48
 	stax d                                                          ; $0b49
 	ret                                                             ; $0b4a
@@ -3726,8 +3726,8 @@ Script_StudyTimeKeepPlaying:
 	S_PRINT2DIGITS wP1MazesWon, wVram+NEXT_PIXEL_ROW*213+27
 
 ; Set character sprites, and timers, then wait until game done
-	S_SETUPPLAYER wPlayer2TileDataSrc+1, TileData_SmallDiamond, wRightArrowTileY, $17, $c0|INPUTF_RIGHT1
-	S_SETUPPLAYER wPlayer1TileDataSrc+1, TileData_SquareWithDot, wLeftArrowTileY, $e0, $c0
+	S_SETUPPLAYER wPlayer2.TileDataSrc+1, TileData_SmallDiamond, wRightArrowTileY, $17, $c0|INPUTF_RIGHT1
+	S_SETUPPLAYER wPlayer1.TileDataSrc+1, TileData_SquareWithDot, wLeftArrowTileY, $e0, $c0
 
 	S_MEMSET 6, wTimerUntilNextStudyTimeTick
 	S_MEMSET 6, wStudyTimeLeft
@@ -3809,8 +3809,8 @@ Script_VerticalText:
 	S_PRINT2DIGITS wMazesLeftToPlay, wVram+NEXT_PIXEL_ROW*0+22
 	S_PRINTTEXT _sizeof_Text_Time, Text_Time, wVram+NEXT_PIXEL_ROW*213+3
 	S_PRINTTEXT _sizeof_Text_Overall, Text_Overall, wVram+NEXT_PIXEL_ROW*213+17
-	S_SETUPPLAYER wPlayer2TileDataSrc+1, TileData_SquareWithDot, wRightArrowTileY, $17, $c0
-	S_SETUPPLAYER wPlayer1TileDataSrc+1, TileData_SmallDiamond, wLeftArrowTileY, $e0, $c0
+	S_SETUPPLAYER wPlayer2.TileDataSrc+1, TileData_SquareWithDot, wRightArrowTileY, $17, $c0
+	S_SETUPPLAYER wPlayer1.TileDataSrc+1, TileData_SmallDiamond, wLeftArrowTileY, $e0, $c0
 
 ; Start counting seconds, and don't do 1-player's study time. Wait until game done
 	S_MEMSET 1, wSecondsPassedTimer

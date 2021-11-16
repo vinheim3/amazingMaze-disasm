@@ -159,44 +159,14 @@ wAIGameGridRow: ; $2042
 wAIGameGridCol: ; $2043
     db
 
-; Bit 7 - set if can move
-; Bit 6 - during DrawPlayer, if clear, clears bit 7 (stops movement) and 5 (can redraw)
-; Bit 5 - set if player is being drawn
-; Bit 4 - set if player Y < $60, ie in area before midframe interrupt
-wPlayer2DirInputs: ; $2044
-    db
-wPlayer2PixelX: ; $2045
-    db
-wPlayer2PixelY: ; $2046
-    db
-wPlayer2TileDataSrc: ; $2047
-    dw
-; Player is drawn upwards
-wPlayer2StartingVramLoc: ; $2049
-    dw
-wPlayer2TileDataWithoutPlayer: ; $204b
-    ds 2
+wPlayer2: ; $2044
+    instanceof Player
 
 w204d:
     ds $55-$4d
 
-; Bit 7 - set if can move
-; Bit 6 - during DrawPlayer, if clear, clears bit 7 (stops movement) and 5 (can redraw)
-; Bit 5 - set if player is being drawn
-; Bit 4 - set if player Y < $60, ie in area before midframe interrupt
-wPlayer1DirInputs: ; $2055
-    db
-wPlayer1PixelX: ; $2056
-    db
-wPlayer1PixelY: ; $2057
-    db
-wPlayer1TileDataSrc: ; $2058
-    dw
-; Player is drawn upwards
-wPlayer1StartingVramLoc: ; $205a
-    dw
-wPlayer1TileDataWithoutPlayer: ; $205c
-    ds 2
+wPlayer1: ; $2055
+    instanceof Player
 
 w205e:
     ds $66-$5e
@@ -205,7 +175,8 @@ w205e:
 ; Bit 6 - if clear, there is an east wall
 ; Bit 5 - if clear, there is a north wall
 ; Bit 0 - if clear, cell considered able to move to as part of drawing process
-;       - if set, cell is considered pending (we want to move from it to other cells)
+;       - if set, cell is considered processed
+;           (we can still move to other cells as part of final check)
 ; Bits 3-0 - shifted to upper bits from script command 6
 ; Starts from bottom-left of grid. As we move through the struct,
 ;   move up vertically first, then to the bottom of the col to the right

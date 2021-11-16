@@ -5,17 +5,11 @@ import re
 
 while True:
     # args = sys.argv
-    args = ['', '0'] + input().split()
+    args = [''] + input().split()
 
-    try:
-        int(args[1], 16)
-        fname = f"bank_{args[1].zfill(3)}"
-    except ValueError:
-        fname = args[1]
+    print_stats = args[1] == 'p'
 
-    print_stats = args[2] == 'p'
-
-    with open(f'code/{fname}.s') as f:
+    with open('disasm/code/main.s') as f:
         code = f.read()
 
     with open('temp.s', 'w') as f:
@@ -27,7 +21,7 @@ while True:
         start = 1
         end = len(lines)
     else:
-        start, end = map(int, args[2:])
+        start, end = map(int, args[1:])
 
     relevantLines = lines[start-1:end]
 
@@ -61,5 +55,5 @@ while True:
         print(unchangedLines, changedLines)
 
     else:
-        with open(f'code/{fname}.s', 'w') as f:
+        with open('disasm/code/main.s', 'w') as f:
             f.write('\n'.join(comps))
